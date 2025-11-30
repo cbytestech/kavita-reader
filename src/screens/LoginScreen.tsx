@@ -3,6 +3,7 @@ import { View, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-n
 import { TextInput, Button, Text, ActivityIndicator, IconButton } from 'react-native-paper';
 import { KavitaClient } from '../api/kavitaClient';
 import { useServerStore } from '../stores/serverStore';
+import { useThemeStore } from '../stores/themeStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -16,6 +17,7 @@ export default function LoginScreen({ navigation, route }: Props) {
   const [showPassword, setShowPassword] = useState(false);
 
   const addServer = useServerStore((state) => state.addServer);
+  const theme = useThemeStore((state) => state.theme);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -53,7 +55,7 @@ export default function LoginScreen({ navigation, route }: Props) {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       <View style={styles.content}>
         <IconButton
@@ -61,17 +63,18 @@ export default function LoginScreen({ navigation, route }: Props) {
           size={24}
           onPress={() => navigation.goBack()}
           style={styles.backButton}
+          iconColor={theme.text}
         />
 
         <View style={styles.iconContainer}>
-          <Text style={styles.icon}>🔐</Text>
+          <Text style={[styles.icon, { backgroundColor: theme.primaryLight + '30' }]}>📚</Text>
         </View>
 
-        <Text variant="headlineMedium" style={styles.title}>
+        <Text variant="headlineMedium" style={[styles.title, { color: theme.text }]}>
           Sign In
         </Text>
         
-        <Text variant="bodyMedium" style={styles.subtitle}>
+        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.textSecondary }]}>
           {serverUrl.replace(/^https?:\/\//, '')}
         </Text>
 
@@ -80,11 +83,13 @@ export default function LoginScreen({ navigation, route }: Props) {
           value={username}
           onChangeText={setUsername}
           mode="outlined"
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.surface }]}
           autoCapitalize="none"
           autoCorrect={false}
           left={<TextInput.Icon icon="account" />}
           disabled={loading}
+          textColor={theme.text}
+          placeholderTextColor={theme.textTertiary}
         />
 
         <TextInput
@@ -93,7 +98,7 @@ export default function LoginScreen({ navigation, route }: Props) {
           onChangeText={setPassword}
           mode="outlined"
           secureTextEntry={!showPassword}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.surface }]}
           left={<TextInput.Icon icon="lock" />}
           right={
             <TextInput.Icon 
@@ -102,6 +107,8 @@ export default function LoginScreen({ navigation, route }: Props) {
             />
           }
           disabled={loading}
+          textColor={theme.text}
+          placeholderTextColor={theme.textTertiary}
         />
 
         <Button
@@ -110,11 +117,12 @@ export default function LoginScreen({ navigation, route }: Props) {
           disabled={loading}
           style={styles.button}
           contentStyle={styles.buttonContent}
+          buttonColor={theme.accent}
         >
           {loading ? 'Signing In...' : 'Sign In'}
         </Button>
 
-        {loading && <ActivityIndicator style={styles.loader} />}
+        {loading && <ActivityIndicator style={styles.loader} color={theme.primary} />}
       </View>
     </KeyboardAvoidingView>
   );
@@ -123,7 +131,6 @@ export default function LoginScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   content: {
     flex: 1,
@@ -144,7 +151,6 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 48,
-    backgroundColor: '#E3F2FD',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -153,20 +159,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     fontWeight: '600',
-    color: '#1a1a1a',
   },
   subtitle: {
     textAlign: 'center',
     marginBottom: 32,
-    color: '#666',
   },
   input: {
     marginBottom: 16,
-    backgroundColor: '#fff',
   },
   button: {
     marginTop: 8,
-    backgroundColor: '#1976D2',
   },
   buttonContent: {
     paddingVertical: 8,

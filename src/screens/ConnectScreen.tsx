@@ -1,10 +1,11 @@
 // src/screens/ConnectScreen.tsx
-// Enhanced version with separate port field for better UX
 import React, { useState } from 'react';
 import { View, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, Text, ActivityIndicator, Divider, SegmentedButtons } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TextInput, Button, Text, ActivityIndicator, Divider, SegmentedButtons, IconButton } from 'react-native-paper';
 import { KavitaClient } from '../api/kavitaClient';
 import { useServerStore } from '../stores/serverStore';
+import { useThemeStore } from '../stores/themeStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -19,31 +20,25 @@ export default function ConnectScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   
   const addServer = useServerStore((state) => state.addServer);
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const toggleDarkMode = useThemeStore((state) => state.toggleDarkMode);
+  const theme = useThemeStore((state) => state.theme);
 
   const buildServerUrl = (): string => {
     if (connectionType === 'opds') {
       return opdsUrl.trim();
     }
 
-    // For IP/domain connections
     let cleanAddress = serverAddress.trim();
-    
-    // Remove any http:// or https:// if user added it
     cleanAddress = cleanAddress.replace(/^https?:\/\//, '');
-    
-    // Remove any trailing slashes
     cleanAddress = cleanAddress.replace(/\/$/, '');
-    
-    // Remove port if user included it in the address
     cleanAddress = cleanAddress.replace(/:\d+$/, '');
 
-    // Build the URL
     const protocol = useHttps ? 'https' : 'http';
     return `${protocol}://${cleanAddress}:${port}`;
   };
 
   const handleConnect = async () => {
-    // Validation
     if (connectionType === 'ip') {
       if (!serverAddress.trim()) {
         Alert.alert('Error', 'Please enter a server address');
@@ -64,8 +59,6 @@ export default function ConnectScreen({ navigation }: Props) {
     
     try {
       const serverUrl = buildServerUrl();
-
-      // Test connection
       const client = new KavitaClient(serverUrl);
       const isConnected = await client.testConnection();
       
@@ -82,7 +75,6 @@ export default function ConnectScreen({ navigation }: Props) {
         return;
       }
 
-      // Connection successful
       navigation.navigate('Login', { serverUrl });
       
     } catch (error: any) {
@@ -115,213 +107,234 @@ export default function ConnectScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardView}
       >
-        <View style={styles.content}>
-        {/* Icon */}
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>📚</Text>
+        {/* Dark Mode Toggle - Top Right */}
+        <View style={styles.topBar}>
+          <IconButton
+            icon={isDarkMode ? 'weather-sunny' : 'weather-night'}
+            size={24}
+            iconColor={theme.primary}
+            onPress={toggleDarkMode}
+          />
         </View>
 
-        {/* Title */}
-        <Text variant="headlineMedium" style={styles.title}>
-          Connect to Kavita
-        </Text>
-        
-        <Text variant="bodyMedium" style={styles.subtitle}>
-          Enter your server details to access your library
-        </Text>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            {/* Icon */}
+            <View style={styles.iconContainer}>
+              <Text style={styles.icon}>🏡</Text>
+            </View>
 
-        {/* Connection Type Selector */}
-        <SegmentedButtons
-          value={connectionType}
-          onValueChange={setConnectionType}
-          buttons={[
-            {
-              value: 'ip',
-              label: 'IP Address',
-              icon: 'ip-network',
-            },
-            {
-              value: 'opds',
-              label: 'OPDS URL',
-              icon: 'link',
-            },
-          ]}
-          style={styles.segmentedButtons}
-        />
-
-        {/* IP Address Mode */}
-        {connectionType === 'ip' && (
-          <View style={styles.inputContainer}>
-            <Text variant="labelLarge" style={styles.label}>
-              Server Address
+            {/* Title */}
+            <Text variant="headlineMedium" style={[styles.title, { color: theme.text }]}>
+              KavitaReader
             </Text>
             
-            <TextInput
-              value={serverAddress}
-              onChangeText={setServerAddress}
-              placeholder="192.168.1.100 or myserver.com"
-              mode="outlined"
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              left={<TextInput.Icon icon="server" />}
-              disabled={loading}
+            <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Connect to your Kavita library
+            </Text>
+
+            {/* Connection Type Selector */}
+            <SegmentedButtons
+              value={connectionType}
+              onValueChange={setConnectionType}
+              buttons={[
+                { value: 'ip', label: 'IP Address', icon: 'ip-network' },
+                { value: 'opds', label: 'OPDS URL', icon: 'link' },
+              ]}
+              style={styles.segmentedButtons}
+              theme={{ colors: { secondaryContainer: theme.primaryLight } }}
             />
 
-            <View style={styles.portContainer}>
-              <Text variant="labelLarge" style={styles.label}>
-                Port
-              </Text>
-              <View style={styles.portSpinnerContainer}>
-                <Button
-                  mode="outlined"
-                  onPress={() => {
-                    const currentPort = parseInt(port) || 5000;
-                    if (currentPort > 1) setPort(String(currentPort - 1));
-                  }}
-                  disabled={loading}
-                  style={styles.portButton}
-                  compact
-                >
-                  -
-                </Button>
+            {/* IP Address Mode */}
+            {connectionType === 'ip' && (
+              <View style={styles.inputContainer}>
+                <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
+                  Server Address
+                </Text>
+                
                 <TextInput
-                  value={port}
-                  onChangeText={(text) => {
-                    const num = text.replace(/[^0-9]/g, '');
-                    if (num === '' || (parseInt(num) >= 1 && parseInt(num) <= 65535)) {
-                      setPort(num || '5000');
-                    }
-                  }}
+                  value={serverAddress}
+                  onChangeText={setServerAddress}
+                  placeholder="192.168.1.100 or myserver.com"
                   mode="outlined"
-                  keyboardType="numeric"
-                  style={styles.portInputCenter}
+                  style={[styles.input, { backgroundColor: theme.surface }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  left={<TextInput.Icon icon="server" />}
                   disabled={loading}
+                  textColor={theme.text}
+                  placeholderTextColor={theme.textTertiary}
                 />
-                <Button
+
+                <View style={styles.portContainer}>
+                  <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
+                    Port
+                  </Text>
+                  <View style={styles.portSpinnerContainer}>
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        const currentPort = parseInt(port) || 5000;
+                        if (currentPort > 1) setPort(String(currentPort - 1));
+                      }}
+                      disabled={loading}
+                      style={[styles.portButton, { borderColor: theme.primary }]}
+                      textColor={theme.primary}
+                      compact
+                    >
+                      -
+                    </Button>
+                    <TextInput
+                      value={port}
+                      onChangeText={(text) => {
+                        const num = text.replace(/[^0-9]/g, '');
+                        if (num === '' || (parseInt(num) >= 1 && parseInt(num) <= 65535)) {
+                          setPort(num || '5000');
+                        }
+                      }}
+                      mode="outlined"
+                      keyboardType="numeric"
+                      style={[styles.portInputCenter, { backgroundColor: theme.surface }]}
+                      disabled={loading}
+                      textColor={theme.text}
+                    />
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        const currentPort = parseInt(port) || 5000;
+                        if (currentPort < 65535) setPort(String(currentPort + 1));
+                      }}
+                      disabled={loading}
+                      style={[styles.portButton, { borderColor: theme.primary }]}
+                      textColor={theme.primary}
+                      compact
+                    >
+                      +
+                    </Button>
+                  </View>
+                </View>
+
+                <View style={styles.httpsContainer}>
+                  <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
+                    Protocol
+                  </Text>
+                  <SegmentedButtons
+                    value={useHttps ? 'https' : 'http'}
+                    onValueChange={(value) => setUseHttps(value === 'https')}
+                    buttons={[
+                      { value: 'http', label: 'HTTP' },
+                      { value: 'https', label: 'HTTPS' },
+                    ]}
+                    style={styles.protocolButtons}
+                    density="small"
+                  />
+                </View>
+                
+                <Text variant="bodySmall" style={[styles.hint, { color: theme.textTertiary }]}>
+                  Default Kavita port is 5000. Protocol is usually HTTP for local networks.
+                </Text>
+
+                <View style={[styles.previewContainer, { backgroundColor: theme.card }]}>
+                  <Text variant="bodySmall" style={[styles.previewLabel, { color: theme.primary }]}>
+                    Will connect to:
+                  </Text>
+                  <Text variant="bodyMedium" style={[styles.previewUrl, { color: theme.text }]}>
+                    {serverAddress ? buildServerUrl() : 'Enter server address above'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* OPDS Mode */}
+            {connectionType === 'opds' && (
+              <View style={styles.inputContainer}>
+                <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
+                  OPDS Feed URL
+                </Text>
+                
+                <TextInput
+                  value={opdsUrl}
+                  onChangeText={setOpdsUrl}
+                  placeholder="https://example.com/api/opds/..."
                   mode="outlined"
-                  onPress={() => {
-                    const currentPort = parseInt(port) || 5000;
-                    if (currentPort < 65535) setPort(String(currentPort + 1));
-                  }}
+                  style={[styles.input, { backgroundColor: theme.surface }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  left={<TextInput.Icon icon="rss" />}
                   disabled={loading}
-                  style={styles.portButton}
-                  compact
-                >
-                  +
-                </Button>
+                  textColor={theme.text}
+                  placeholderTextColor={theme.textTertiary}
+                />
+                
+                <Text variant="bodySmall" style={[styles.hint, { color: theme.textTertiary }]}>
+                  Paste the full OPDS feed URL from your Kavita server settings.
+                </Text>
               </View>
-            </View>
+            )}
 
-            <View style={styles.httpsContainer}>
-              <Text variant="labelLarge" style={styles.label}>
-                Protocol
-              </Text>
-              <SegmentedButtons
-                value={useHttps ? 'https' : 'http'}
-                onValueChange={(value) => setUseHttps(value === 'https')}
-                buttons={[
-                  { value: 'http', label: 'HTTP' },
-                  { value: 'https', label: 'HTTPS' },
-                ]}
-                style={styles.protocolButtons}
-                density="small"
-              />
-            </View>
-            
-            <Text variant="bodySmall" style={styles.hint}>
-              Default Kavita port is 5000. Protocol is usually HTTP for local networks.
-            </Text>
-
-            <View style={styles.previewContainer}>
-              <Text variant="bodySmall" style={styles.previewLabel}>
-                Will connect to:
-              </Text>
-              <Text variant="bodyMedium" style={styles.previewUrl}>
-                {serverAddress ? buildServerUrl() : 'Enter server address above'}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* OPDS Mode */}
-        {connectionType === 'opds' && (
-          <View style={styles.inputContainer}>
-            <Text variant="labelLarge" style={styles.label}>
-              OPDS Feed URL
-            </Text>
-            
-            <TextInput
-              value={opdsUrl}
-              onChangeText={setOpdsUrl}
-              placeholder="https://example.com/api/opds/..."
-              mode="outlined"
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              left={<TextInput.Icon icon="rss" />}
+            {/* Connect Button */}
+            <Button
+              mode="contained"
+              onPress={handleConnect}
               disabled={loading}
-            />
-            
-            <Text variant="bodySmall" style={styles.hint}>
-              Paste the full OPDS feed URL from your Kavita server settings.
-            </Text>
+              style={styles.connectButton}
+              buttonColor={theme.accent}
+              contentStyle={styles.buttonContent}
+            >
+              {loading ? 'Connecting...' : 'Connect Server'}
+            </Button>
+
+            {loading && <ActivityIndicator style={styles.loader} color={theme.primary} />}
+
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <Divider style={[styles.divider, { backgroundColor: theme.border }]} />
+              <Text variant="labelMedium" style={[styles.dividerText, { color: theme.textSecondary }]}>
+                DEMO MODE
+              </Text>
+              <Divider style={[styles.divider, { backgroundColor: theme.border }]} />
+            </View>
+
+            {/* Demo Mode Button */}
+            <Button
+              mode="outlined"
+              onPress={handleDemoMode}
+              style={[styles.demoButton, { borderColor: theme.textSecondary }]}
+              textColor={theme.textSecondary}
+              contentStyle={styles.buttonContent}
+            >
+              Try Demo Library
+            </Button>
           </View>
-        )}
-
-        {/* Connect Button */}
-        <Button
-          mode="contained"
-          onPress={handleConnect}
-          disabled={loading}
-          style={styles.connectButton}
-          contentStyle={styles.buttonContent}
-        >
-          {loading ? 'Connecting...' : 'Connect Server'}
-        </Button>
-
-        {loading && <ActivityIndicator style={styles.loader} />}
-
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <Divider style={styles.divider} />
-          <Text variant="labelMedium" style={styles.dividerText}>
-            DEMO MODE
-          </Text>
-          <Divider style={styles.divider} />
-        </View>
-
-        {/* Demo Mode Button */}
-        <Button
-          mode="outlined"
-          onPress={handleDemoMode}
-          style={styles.demoButton}
-          contentStyle={styles.buttonContent}
-        >
-          Try Demo Library
-        </Button>
-              </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  topBar: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
   },
   scrollContent: {
     flexGrow: 1,
@@ -329,119 +342,101 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
     maxWidth: 500,
     width: '100%',
     alignSelf: 'center',
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   icon: {
-    fontSize: 40,
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
+    fontSize: 48,
   },
   title: {
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
     fontWeight: '600',
-    color: '#1a1a1a',
   },
   subtitle: {
     textAlign: 'center',
-    marginBottom: 12,
-    color: '#666',
-    fontSize: 13,
+    marginBottom: 16,
   },
   segmentedButtons: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   inputContainer: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   label: {
-    marginBottom: 4,
-    color: '#333',
-    fontSize: 13,
+    marginBottom: 6,
   },
   input: {
-    backgroundColor: '#fff',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   portContainer: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   portSpinnerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   portButton: {
-    minWidth: 44,
-    borderColor: '#1976D2',
+    minWidth: 48,
   },
   portInputCenter: {
     flex: 1,
-    backgroundColor: '#fff',
     textAlign: 'center',
   },
   httpsContainer: {
-    marginBottom: 4,
+    marginBottom: 6,
   },
   protocolButtons: {
-    backgroundColor: '#fff',
   },
   hint: {
-    color: '#999',
-    fontSize: 10,
-    marginBottom: 8,
+    fontSize: 11,
+    marginBottom: 10,
   },
   previewContainer: {
-    backgroundColor: '#E3F2FD',
-    padding: 8,
-    borderRadius: 6,
-    marginTop: 4,
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 6,
   },
   previewLabel: {
-    color: '#1976D2',
-    marginBottom: 2,
-    fontSize: 10,
+    marginBottom: 3,
+    fontSize: 11,
   },
   previewUrl: {
-    color: '#1565C0',
     fontWeight: '500',
-    fontSize: 12,
+    fontSize: 13,
   },
   connectButton: {
-    marginBottom: 10,
-    backgroundColor: '#FF6B35',
+    marginBottom: 12,
   },
   buttonContent: {
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   loader: {
-    marginVertical: 10,
+    marginVertical: 12,
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 16,
   },
   divider: {
     flex: 1,
   },
   dividerText: {
-    marginHorizontal: 10,
-    color: '#999',
+    marginHorizontal: 12,
     fontWeight: '500',
-    fontSize: 10,
+    fontSize: 11,
   },
   demoButton: {
-    marginBottom: 10,
-    borderColor: '#999',
+    marginBottom: 20,
   },
 });

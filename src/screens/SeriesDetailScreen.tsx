@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, ActivityIndicator, Card, Button, Chip } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { useServerStore } from '../stores/serverStore';
+import { useThemeStore } from '../stores/themeStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -15,6 +16,7 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   
   const client = useServerStore((state) => state.getActiveClient());
+  const theme = useThemeStore((state) => state.theme);
 
   useEffect(() => {
     loadSeriesData();
@@ -59,7 +61,6 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
   };
 
   const handleReadVolume = (volume: any) => {
-    // Navigate to first chapter in the volume
     if (volume.chapters && volume.chapters.length > 0) {
       const firstChapter = volume.chapters[0];
       navigation.navigate('Reader', { 
@@ -73,25 +74,25 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading series...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading series...</Text>
       </View>
     );
   }
 
   if (!series) {
     return (
-      <View style={styles.centerContainer}>
-        <Text variant="titleLarge">Series not found</Text>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+        <Text variant="titleLarge" style={{ color: theme.text }}>Series not found</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Cover and Info Section */}
-      <View style={styles.heroSection}>
+      <View style={[styles.heroSection, { backgroundColor: theme.surface }]}>
         <Image
           source={{ uri: getCoverUrl() }}
           style={styles.coverImage}
@@ -99,21 +100,21 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
         />
         
         <View style={styles.infoSection}>
-          <Text variant="headlineMedium" style={styles.seriesTitle}>
+          <Text variant="headlineMedium" style={[styles.seriesTitle, { color: theme.text }]}>
             {series.name}
           </Text>
           
           {series.summary && (
-            <Text variant="bodyMedium" style={styles.summary}>
+            <Text variant="bodyMedium" style={[styles.summary, { color: theme.textSecondary }]}>
               {series.summary}
             </Text>
           )}
 
           <View style={styles.metaRow}>
-            <Chip icon="book-open" style={styles.chip}>
+            <Chip icon="book-open" style={[styles.chip, { backgroundColor: theme.card }]} textStyle={{ color: theme.text }}>
               {series.pages} pages
             </Chip>
-            <Chip icon="progress-check" style={styles.chip}>
+            <Chip icon="progress-check" style={[styles.chip, { backgroundColor: theme.card }]} textStyle={{ color: theme.text }}>
               {getProgress()}% read
             </Chip>
           </View>
@@ -122,6 +123,7 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
             mode="contained"
             icon="play"
             style={styles.readButton}
+            buttonColor={theme.accent}
             onPress={() => {
               if (volumes.length > 0) {
                 handleReadVolume(volumes[0]);
@@ -137,16 +139,16 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
 
       {/* Volumes and Chapters List */}
       <View style={styles.volumesSection}>
-        <Text variant="titleLarge" style={styles.sectionTitle}>
+        <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.text }]}>
           {volumes.length === 1 && volumes[0].chapters?.length > 1 
             ? 'Chapters' 
             : 'Volumes & Chapters'}
         </Text>
         
         {volumes.length === 0 ? (
-          <Card style={styles.emptyCard}>
+          <Card style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
             <Card.Content>
-              <Text>No volumes available</Text>
+              <Text style={{ color: theme.text }}>No volumes available</Text>
             </Card.Content>
           </Card>
         ) : (
@@ -154,7 +156,7 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
             <View key={volume.id} style={styles.volumeContainer}>
               {/* Volume Header - only show if there are multiple volumes */}
               {volumes.length > 1 && (
-                <Card style={styles.volumeCard}>
+                <Card style={[styles.volumeCard, { backgroundColor: theme.surface }]}>
                   <TouchableOpacity onPress={() => handleReadVolume(volume)}>
                     <Card.Content>
                       <View style={styles.volumeHeader}>
@@ -164,23 +166,26 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
                           contentFit="cover"
                         />
                         <View style={styles.volumeInfo}>
-                          <Text variant="titleMedium" style={styles.volumeName}>
+                          <Text variant="titleMedium" style={[styles.volumeName, { color: theme.text }]}>
                             {volume.name || `Volume ${volume.number}`}
                           </Text>
-                          <Text variant="bodySmall" style={styles.volumeMeta}>
+                          <Text variant="bodySmall" style={[styles.volumeMeta, { color: theme.textSecondary }]}>
                             {volume.chapters?.length || 0} chapters • {volume.pages} pages
                           </Text>
                           {volume.pagesRead > 0 && (
                             <View style={styles.progressBarContainer}>
-                              <View style={styles.progressBar}>
+                              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
                                 <View 
                                   style={[
                                     styles.progressFill, 
-                                    { width: `${Math.round((volume.pagesRead / volume.pages) * 100)}%` }
+                                    { 
+                                      width: `${Math.round((volume.pagesRead / volume.pages) * 100)}%`,
+                                      backgroundColor: theme.primary
+                                    }
                                   ]} 
                                 />
                               </View>
-                              <Text variant="bodySmall" style={styles.progressText}>
+                              <Text variant="bodySmall" style={[styles.progressText, { color: theme.textSecondary }]}>
                                 {Math.round((volume.pagesRead / volume.pages) * 100)}%
                               </Text>
                             </View>
@@ -196,7 +201,7 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
               {volume.chapters && volume.chapters.length > 0 && (
                 <View style={styles.chaptersContainer}>
                   {volume.chapters.map((chapter: any) => (
-                    <Card key={chapter.id} style={styles.chapterCard}>
+                    <Card key={chapter.id} style={[styles.chapterCard, { backgroundColor: theme.surface }]}>
                       <TouchableOpacity 
                         onPress={() => {
                           navigation.navigate('Reader', {
@@ -208,21 +213,21 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
                         <Card.Content>
                           <View style={styles.chapterRow}>
                             <View style={styles.chapterInfo}>
-                              <Text variant="bodyLarge" style={styles.chapterTitle}>
+                              <Text variant="bodyLarge" style={[styles.chapterTitle, { color: theme.text }]}>
                                 {chapter.title || chapter.titleName || chapter.range || `Chapter ${chapter.number}`}
                               </Text>
-                              <Text variant="bodySmall" style={styles.chapterMeta}>
+                              <Text variant="bodySmall" style={[styles.chapterMeta, { color: theme.textSecondary }]}>
                                 {chapter.pages} pages
                                 {chapter.pagesRead > 0 && ` • ${chapter.pagesRead} read`}
                               </Text>
                             </View>
                             {chapter.pagesRead > 0 && chapter.pagesRead < chapter.pages && (
-                              <Chip mode="outlined" compact style={styles.inProgressChip}>
+                              <Chip mode="outlined" compact style={[styles.inProgressChip, { borderColor: theme.warning, backgroundColor: `${theme.warning}20` }]}>
                                 In Progress
                               </Chip>
                             )}
                             {chapter.pagesRead === chapter.pages && (
-                              <Chip mode="outlined" compact style={styles.completedChip}>
+                              <Chip mode="outlined" compact style={[styles.completedChip, { borderColor: theme.success, backgroundColor: `${theme.success}20` }]}>
                                 ✓ Read
                               </Chip>
                             )}
@@ -244,7 +249,6 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   centerContainer: {
     flex: 1,
@@ -254,10 +258,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    color: '#666',
   },
   heroSection: {
-    backgroundColor: '#fff',
     paddingBottom: 20,
   },
   coverImage: {
@@ -273,7 +275,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summary: {
-    color: '#666',
     marginBottom: 16,
     lineHeight: 22,
   },
@@ -283,10 +284,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chip: {
-    backgroundColor: '#E3F2FD',
   },
   readButton: {
-    backgroundColor: '#FF6B35',
   },
   volumesSection: {
     padding: 16,
@@ -300,7 +299,6 @@ const styles = StyleSheet.create({
   },
   volumeCard: {
     marginBottom: 12,
-    backgroundColor: '#fff',
   },
   volumeHeader: {
     flexDirection: 'row',
@@ -320,7 +318,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   volumeMeta: {
-    color: '#666',
     marginBottom: 8,
   },
   progressBarContainer: {
@@ -331,23 +328,19 @@ const styles = StyleSheet.create({
   progressBar: {
     flex: 1,
     height: 4,
-    backgroundColor: '#E0E0E0',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#1976D2',
   },
   progressText: {
-    color: '#666',
     minWidth: 35,
   },
   chaptersContainer: {
     gap: 8,
   },
   chapterCard: {
-    backgroundColor: '#fff',
   },
   chapterRow: {
     flexDirection: 'row',
@@ -363,17 +356,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   chapterMeta: {
-    color: '#666',
   },
   inProgressChip: {
-    borderColor: '#FFA726',
-    backgroundColor: '#FFF3E0',
   },
   completedChip: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#E8F5E9',
   },
   emptyCard: {
-    backgroundColor: '#fff',
   },
 });

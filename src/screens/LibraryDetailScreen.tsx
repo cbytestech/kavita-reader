@@ -3,6 +3,7 @@ import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, Keyboard } fr
 import { Text, ActivityIndicator, Card, Searchbar, Chip } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { useServerStore } from '../stores/serverStore';
+import { useThemeStore } from '../stores/themeStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -19,6 +20,7 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name');
   
   const client = useServerStore((state) => state.getActiveClient());
+  const theme = useThemeStore((state) => state.theme);
 
   useEffect(() => {
     loadSeries();
@@ -44,7 +46,6 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  // FIXED: Use the proper getCoverImageUrl method
   const getCoverUrl = (seriesId: number) => {
     if (!client) return '';
     return client.getCoverImageUrl(seriesId);
@@ -63,20 +64,14 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
   });
 
   const getSeriesInfo = (item: any) => {
-    // Check if this series has multiple chapters (books in a folder)
     const chapterCount = item.chapterCount || 0;
     const volumeCount = item.volumeCount || 0;
     
-    // If there are multiple chapters in a single volume, it's multiple books
     if (chapterCount > 1 && volumeCount === 1) {
       return `${chapterCount} books`;
-    }
-    // If there are multiple volumes, show volume count
-    else if (volumeCount > 1) {
+    } else if (volumeCount > 1) {
       return `${volumeCount} volumes`;
-    }
-    // Single book - show pages
-    else {
+    } else {
       if (item.pagesRead > 0) {
         return `${item.pagesRead}/${item.pages} pages`;
       }
@@ -89,7 +84,7 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
       style={styles.seriesCard}
       onPress={() => navigation.navigate('SeriesDetail', { seriesId: item.id })}
     >
-      <Card style={styles.card}>
+      <Card style={[styles.card, { backgroundColor: theme.surface }]}>
         <Image
           source={{ uri: getCoverUrl(item.id) }}
           style={styles.cover}
@@ -97,18 +92,21 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
           transition={200}
         />
         <Card.Content style={styles.cardInfo}>
-          <Text variant="bodyMedium" numberOfLines={2} style={styles.seriesTitle}>
+          <Text variant="bodyMedium" numberOfLines={2} style={[styles.seriesTitle, { color: theme.text }]}>
             {item.name}
           </Text>
-          <Text variant="bodySmall" style={styles.seriesInfo}>
+          <Text variant="bodySmall" style={[styles.seriesInfo, { color: theme.textSecondary }]}>
             {getSeriesInfo(item)}
           </Text>
           {item.pagesRead > 0 && (
-            <View style={styles.progressBar}>
+            <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
               <View 
                 style={[
                   styles.progressFill, 
-                  { width: `${(item.pagesRead / item.pages) * 100}%` }
+                  { 
+                    width: `${(item.pagesRead / item.pages) * 100}%`,
+                    backgroundColor: theme.primary
+                  }
                 ]} 
               />
             </View>
@@ -120,21 +118,24 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading series...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading series...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Searchbar
         placeholder="Search in library..."
         onChangeText={setSearchQuery}
         value={searchQuery}
-        style={styles.searchBar}
+        style={[styles.searchBar, { backgroundColor: theme.surface }]}
         onBlur={() => Keyboard.dismiss()}
+        iconColor={theme.textSecondary}
+        placeholderTextColor={theme.textTertiary}
+        inputStyle={{ color: theme.text }}
       />
 
       <View style={styles.filterRow}>
@@ -144,7 +145,8 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
             Keyboard.dismiss();
             setSortBy('name');
           }}
-          style={styles.chip}
+          style={[styles.chip, { backgroundColor: sortBy === 'name' ? theme.primaryLight : theme.surface }]}
+          textStyle={{ color: sortBy === 'name' ? '#fff' : theme.text }}
         >
           A-Z
         </Chip>
@@ -154,7 +156,8 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
             Keyboard.dismiss();
             setSortBy('recent');
           }}
-          style={styles.chip}
+          style={[styles.chip, { backgroundColor: sortBy === 'recent' ? theme.primaryLight : theme.surface }]}
+          textStyle={{ color: sortBy === 'recent' ? '#fff' : theme.text }}
         >
           Recently Added
         </Chip>
@@ -162,8 +165,8 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
 
       {sortedSeries.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text variant="titleLarge">No series found</Text>
-          <Text variant="bodyMedium" style={styles.emptyText}>
+          <Text variant="titleLarge" style={{ color: theme.text }}>No series found</Text>
+          <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.textSecondary }]}>
             {searchQuery ? 'Try a different search term' : `This library has ${series.length} items but they may not have loaded correctly.`}
           </Text>
         </View>
@@ -185,7 +188,6 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   centerContainer: {
     flex: 1,
@@ -195,12 +197,10 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    color: '#666',
   },
   searchBar: {
     margin: 16,
     marginBottom: 8,
-    backgroundColor: '#fff',
   },
   filterRow: {
     flexDirection: 'row',
@@ -209,7 +209,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: '#fff',
   },
   gridContent: {
     padding: 16,
@@ -222,7 +221,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    elevation: 2,
   },
   cover: {
     width: '100%',
@@ -237,23 +236,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   seriesInfo: {
-    color: '#666',
     marginBottom: 4,
   },
   progressBar: {
     height: 3,
-    backgroundColor: '#E0E0E0',
     borderRadius: 2,
     overflow: 'hidden',
     marginTop: 4,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#1976D2',
   },
   emptyText: {
     marginTop: 8,
-    color: '#666',
     textAlign: 'center',
   },
 });

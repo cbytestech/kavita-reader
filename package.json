@@ -1,7 +1,7 @@
 {
   "name": "kavita-reader",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -31,7 +31,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-vector-icons": "^10.3.0",
-    "react-native-webview": "^13.16.0",
+    "react-native-webview": "13.15.0",
     "react-refresh": "^0.18.0",
     "zustand": "^5.0.8"
   },

@@ -1,3 +1,4 @@
+// src/api/kavitaClient.ts
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserDto } from '../types/kavita';
@@ -17,7 +18,7 @@ export class KavitaClient {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: 30000,
+      timeout: 10000, // Reduced from 30000 for faster feedback
       headers: {
         'Content-Type': 'application/json',
       },
@@ -70,6 +71,29 @@ export class KavitaClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      console.log('Testing connection to:', this.baseUrl);
+      const response = await this.client.get('/api/Health');
+      console.log('✅ Connection successful!', response.status);
+      return true;
+    } catch (error: any) {
+      console.error('❌ Connection failed:', error.message);
+      
+      if (error.code === 'ECONNABORTED') {
+        console.error('Connection timed out');
+      } else if (error.code === 'ERR_NETWORK') {
+        console.error('Network error - check if server is running');
+      } else if (error.response) {
+        console.error('Server responded with:', error.response.status);
+      } else if (error.request) {
+        console.error('No response received from server');
+      }
+      
+      return false;
+    }
   }
 
   async login(username: string, password: string): Promise<UserDto> {
@@ -133,15 +157,6 @@ export class KavitaClient {
     await AsyncStorage.removeItem(API_KEY);
   }
 
-  async testConnection(): Promise<boolean> {
-    try {
-      await this.client.get('/api/Health');
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
   async getLibraries(): Promise<any[]> {
     try {
       const response = await this.client.get('/api/Library/libraries');
@@ -169,13 +184,11 @@ export class KavitaClient {
         return [];
       }
 
-      // Fetch volume info for each series to get chapter counts
       const enrichedSeries = await Promise.all(
         seriesList.map(async (series) => {
           try {
             const volumes = await this.getVolumes(series.id);
             
-            // Calculate total chapter count across all volumes
             const totalChapters = volumes.reduce((sum, vol) => {
               return sum + (vol.chapters?.length || 0);
             }, 0);
@@ -252,30 +265,81 @@ export class KavitaClient {
       throw this.handleError(error);
     }
   }
+// EPUB Support Methods
+async getBookInfo(chapterId: number): Promise<any> {
+  try {
+    console.log('📘 Fetching book info for chapter:', chapterId);
+    const response = await this.client.get(`/api/Book/${chapterId}/book-info`);
+    console.log('✅ Book info retrieved');
+    return response.data;
+  } catch (error) {
+    throw this.handleError(error);
+  }
+}
 
-  // Cache chapter images before reading
+async getBookPage(chapterId: number, page: number): Promise<string> {
+  try {
+    console.log(`📄 Fetching book page ${page} for chapter ${chapterId}`);
+    const response = await this.client.get(`/api/Book/${chapterId}/book-page`, {
+      params: { page }
+    });
+    console.log('✅ Book page retrieved');
+    return response.data;
+  } catch (error) {
+    throw this.handleError(error);
+  }
+}
+
+async getBookChapters(chapterId: number): Promise<any[]> {
+  try {
+    const response = await this.client.get(`/api/Book/${chapterId}/chapters`);
+    return response.data;
+  } catch (error) {
+    throw this.handleError(error);
+  }
+}
   async cacheChapter(chapterId: number): Promise<void> {
     try {
-      // For PDFs, we need to call the book-info endpoint which triggers extraction
-      await this.client.get(`/api/Book/${chapterId}/book-info`);
-      console.log('Book info cached - PDF extracted');
+      // First get chapter info to determine the format
+      const chapterInfo = await this.getChapterInfo(chapterId);
+      const format = chapterInfo.seriesFormat;
+      const fileName = chapterInfo.fileName || '';
       
-      // Small delay to allow extraction to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.log('Book-info cache failed, trying image dimensions endpoint');
-      try {
-        // Try getting image dimensions which should trigger cache
-        await this.client.get(`/api/Reader/image-dimensions`, {
+      console.log('📄 Chapter format:', format);
+      console.log('📁 File name:', fileName);
+      
+      // IMPORTANT: Check filename FIRST as it's most reliable
+      const isPdf = fileName.toLowerCase().endsWith('.pdf');
+      const isEpub = fileName.toLowerCase().endsWith('.epub');
+      
+      // For EPUBs - MUST CHECK FIRST
+      if (isEpub) {
+        console.log('📘 EPUB detected - caching book info');
+        await this.client.get(`/api/Book/${chapterId}/book-info`);
+        console.log('✅ EPUB chapter cached successfully');
+      }
+      // For PDFs, we need to extract to images
+      else if (isPdf || format === 3) {
+        console.log('📕 PDF detected - will extract on demand (no pre-cache needed)');
+        // Don't pre-cache PDFs - just let the image endpoint handle it
+        // This avoids timeout issues
+        console.log('✅ PDF ready to load');
+      } 
+      // For Archives/Images (format 0, 1, or 4), just cache first image
+      else {
+        console.log('🖼️  Image-based format detected - caching first page');
+        await this.client.get(`/api/Reader/image`, {
           params: { 
             chapterId,
+            page: 0,
             apiKey: this.apiKey
           }
         });
-        console.log('Image dimensions cached');
-      } catch (e) {
-        console.log('All cache attempts failed');
+        console.log('✅ Image chapter cached successfully');
       }
+    } catch (error) {
+      console.log('❌ Cache failed:', error);
+      // Don't throw - caching is optional, images will load on demand
     }
   }
 
@@ -292,13 +356,11 @@ export class KavitaClient {
     }
   }
 
-  // FIXED: Image URLs with proper authentication
   getCoverImageUrl(seriesId: number): string {
     const params = new URLSearchParams({
       seriesId: seriesId.toString(),
     });
     
-    // Use API key for image authentication (more reliable than JWT for images)
     if (this.apiKey) {
       params.append('apiKey', this.apiKey);
     }
@@ -329,26 +391,13 @@ export class KavitaClient {
 
     return `${this.baseUrl}/api/Image/chapter-cover?${params.toString()}`;
   }
-// For PDFs - get the PDF URL
-getPdfUrl(chapterId: number): string {
-  const params = new URLSearchParams({
-    chapterId: chapterId.toString(),
-  });
-  
-  if (this.apiKey) {
-    params.append('apiKey', this.apiKey);
-  }
 
-  return `${this.baseUrl}/api/reader/pdf?${params.toString()}`;
-}
-  // For reader - get page image
   getPageImageUrl(chapterId: number, page: number): string {
     const params = new URLSearchParams({
       chapterId: chapterId.toString(),
       page: page.toString(),
     });
     
-    // Try with API key first, but might need JWT token instead
     if (this.apiKey) {
       params.append('apiKey', this.apiKey);
     }
@@ -356,23 +405,6 @@ getPdfUrl(chapterId: number): string {
     return `${this.baseUrl}/api/Reader/image?${params.toString()}`;
   }
 
-  // Alternative: Get image with auth headers instead of query param
-  async getPageImage(chapterId: number, page: number): Promise<string> {
-    try {
-      const response = await this.client.get('/api/Reader/image', {
-        params: { chapterId, page },
-        responseType: 'blob'
-      });
-      
-      // Convert blob to base64 for React Native Image
-      const blob = response.data;
-      return URL.createObjectURL(blob);
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
-  // Alternative method using chapter-info for caching
   async cacheImages(chapterId: number): Promise<void> {
     try {
       await this.cacheChapter(chapterId);
