@@ -69,15 +69,12 @@ This app is built with love, late nights, and lots of coffee ☕
 
 <div align="center">
 
-| Home Screen | Library View | Series Detail |
-|------------|--------------|---------------|
-| Browse libraries | View your collection | See chapters and progress |
+| Library View | Settings Menu | Reader | <p>
+<img width="270" height="615" alt="Screenshot_20251201-134752" src="https://github.com/user-attachments/assets/a6662b75-0fa3-43af-b3ff-fe85e4283235" />
+<img width="270" height="615" alt="Screenshot_20251201-134805" src="https://github.com/user-attachments/assets/a7857373-60f4-4e63-bc3f-621abe974bec" />
+<img width="270" height="615" alt="Screenshot_20251201-134735" src="https://github.com/user-attachments/assets/5f3f325f-0733-44c4-aad2-448bb0ae5078" />
 
-| Reading - EPUB | Reading - Comic | Settings |
-|----------------|-----------------|----------|
-| Beautiful text reading | Immersive comic view | Customize your experience |
 
-*Screenshots coming soon!*
 
 </div>
 
