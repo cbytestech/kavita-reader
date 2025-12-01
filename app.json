@@ -22,13 +22,28 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#3D4A2C"
       },
-      "package": "com.hesshomestead.reader"
+      "package": "com.hesshomestead.reader",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "extra": {
       "eas": {
         "projectId": "45df5044-5be7-4201-8f7b-760737b9f86d"
       }
     },
-    "owner": "webtechnick"
+    "owner": "webtechnick",
+    "plugins": [
+      "expo-audio"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/45df5044-5be7-4201-8f7b-760737b9f86d"
+    }
   }
 }

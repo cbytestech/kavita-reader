@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getTheme, Theme } from '../utils/theme';
+import { lightTheme, darkTheme, Theme } from '../utils/theme';
 
 interface ThemeState {
   isDarkMode: boolean;
@@ -22,21 +22,21 @@ export const useThemeStore = create<ThemeState>()(
     (set, get) => ({
       isDarkMode: false,
       isGrayscaleReading: false,
-      pageTurnSoundsEnabled: true, // Default to enabled
-      theme: getTheme(false),
+      pageTurnSoundsEnabled: true,
+      theme: lightTheme,
 
       toggleDarkMode: () => {
         const newIsDark = !get().isDarkMode;
         set({
           isDarkMode: newIsDark,
-          theme: getTheme(newIsDark),
+          theme: newIsDark ? darkTheme : lightTheme,
         });
       },
 
       setDarkMode: (isDark: boolean) => {
         set({
           isDarkMode: isDark,
-          theme: getTheme(isDark),
+          theme: isDark ? darkTheme : lightTheme,
         });
       },
 
@@ -74,7 +74,7 @@ export const useThemeStore = create<ThemeState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.theme = getTheme(state.isDarkMode);
+          state.theme = state.isDarkMode ? darkTheme : lightTheme;
         }
       },
     }

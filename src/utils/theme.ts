@@ -1,5 +1,38 @@
 // src/utils/theme.ts
-export const lightTheme = {
+export interface Theme {
+  // Hess Homestead Brand Colors
+  primary: string;
+  primaryLight: string;
+  accent: string;
+  accentLight: string;
+  
+  // Backgrounds
+  background: string;
+  surface: string;
+  card: string;
+  
+  // Text
+  text: string;
+  textSecondary: string;
+  textTertiary: string;
+  
+  // UI Elements
+  border: string;
+  divider: string;
+  disabled: string;
+  
+  // Status
+  success: string;
+  warning: string;
+  error: string;
+  info: string;
+  
+  // Reader
+  readerBackground: string;
+  readerControls: string;
+}
+
+export const lightTheme: Theme = {
   // Hess Homestead Brand Colors
   primary: '#3D4A2C',        // Dark green from H
   primaryLight: '#5A6B47',
@@ -32,7 +65,7 @@ export const lightTheme = {
   readerControls: 'rgba(0, 0, 0, 0.7)',
 };
 
-export const darkTheme = {
+export const darkTheme: Theme = {
   // Hess Homestead Brand Colors (adjusted for dark)
   primary: '#8B9456',        // Leaf green (lighter for dark mode)
   primaryLight: '#A5AF6E',
@@ -65,9 +98,6 @@ export const darkTheme = {
   readerControls: 'rgba(0, 0, 0, 0.8)',
 };
 
-export type Theme = typeof lightTheme;
-
-// Helper to get current theme
 export const getTheme = (isDark: boolean): Theme => {
   return isDark ? darkTheme : lightTheme;
 };

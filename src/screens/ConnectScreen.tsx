@@ -6,6 +6,7 @@ import { TextInput, Button, Text, ActivityIndicator, Divider, SegmentedButtons, 
 import { KavitaClient } from '../api/kavitaClient';
 import { useServerStore } from '../stores/serverStore';
 import { useThemeStore } from '../stores/themeStore';
+import { useAppTheme } from '../hooks/useAppTheme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -22,7 +23,7 @@ export default function ConnectScreen({ navigation }: Props) {
   const addServer = useServerStore((state) => state.addServer);
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const toggleDarkMode = useThemeStore((state) => state.toggleDarkMode);
-  const theme = useThemeStore((state) => state.theme);
+  const theme = useAppTheme();
 
   const buildServerUrl = (): string => {
     if (connectionType === 'opds') {
@@ -112,7 +113,6 @@ export default function ConnectScreen({ navigation }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        {/* Dark Mode Toggle - Top Right */}
         <View style={styles.topBar}>
           <IconButton
             icon={isDarkMode ? 'weather-sunny' : 'weather-night'}
@@ -128,12 +128,10 @@ export default function ConnectScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            {/* Icon */}
             <View style={styles.iconContainer}>
               <Text style={styles.icon}>🏡</Text>
             </View>
 
-            {/* Title */}
             <Text variant="headlineMedium" style={[styles.title, { color: theme.text }]}>
               KavitaReader
             </Text>
@@ -142,7 +140,6 @@ export default function ConnectScreen({ navigation }: Props) {
               Connect to your Kavita library
             </Text>
 
-            {/* Connection Type Selector */}
             <SegmentedButtons
               value={connectionType}
               onValueChange={setConnectionType}
@@ -154,7 +151,6 @@ export default function ConnectScreen({ navigation }: Props) {
               theme={{ colors: { secondaryContainer: theme.primaryLight } }}
             />
 
-            {/* IP Address Mode */}
             {connectionType === 'ip' && (
               <View style={styles.inputContainer}>
                 <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
@@ -255,7 +251,6 @@ export default function ConnectScreen({ navigation }: Props) {
               </View>
             )}
 
-            {/* OPDS Mode */}
             {connectionType === 'opds' && (
               <View style={styles.inputContainer}>
                 <Text variant="labelLarge" style={[styles.label, { color: theme.text }]}>
@@ -283,7 +278,6 @@ export default function ConnectScreen({ navigation }: Props) {
               </View>
             )}
 
-            {/* Connect Button */}
             <Button
               mode="contained"
               onPress={handleConnect}
@@ -297,7 +291,6 @@ export default function ConnectScreen({ navigation }: Props) {
 
             {loading && <ActivityIndicator style={styles.loader} color={theme.primary} />}
 
-            {/* Divider */}
             <View style={styles.dividerContainer}>
               <Divider style={[styles.divider, { backgroundColor: theme.border }]} />
               <Text variant="labelMedium" style={[styles.dividerText, { color: theme.textSecondary }]}>
@@ -306,7 +299,6 @@ export default function ConnectScreen({ navigation }: Props) {
               <Divider style={[styles.divider, { backgroundColor: theme.border }]} />
             </View>
 
-            {/* Demo Mode Button */}
             <Button
               mode="outlined"
               onPress={handleDemoMode}

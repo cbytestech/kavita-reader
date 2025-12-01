@@ -1,6 +1,6 @@
 // src/navigation/AppNavigator.tsx
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, Theme as NavTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { IconButton } from 'react-native-paper';
 import ConnectScreen from '../screens/ConnectScreen';
@@ -10,7 +10,6 @@ import LibraryDetailScreen from '../screens/LibraryDetailScreen';
 import SeriesDetailScreen from '../screens/SeriesDetailScreen';
 import ReaderScreen from '../screens/ReaderScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import { useThemeStore } from '../stores/themeStore';
 
 export type RootStackParamList = {
   Connect: undefined;
@@ -24,17 +23,19 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function AppNavigator() {
-  const theme = useThemeStore((state) => state.theme);
+interface AppNavigatorProps {
+  theme: NavTheme;
+}
 
+export default function AppNavigator({ theme }: AppNavigatorProps) {
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={theme}>
       <Stack.Navigator 
-        id={undefined}
+        id="main-stack"
         initialRouteName="Connect"
         screenOptions={{
           headerStyle: { 
-            backgroundColor: theme.primary 
+            backgroundColor: theme.colors.primary,
           },
           headerTintColor: '#fff',
           headerTitleStyle: {
@@ -57,7 +58,7 @@ export default function AppNavigator() {
           component={HomeScreen}
           options={({ navigation }) => ({
             title: 'My Libraries',
-            headerLeft: () => null, // Remove back button on home
+            headerLeft: () => null,
             headerRight: () => (
               <IconButton
                 icon="cog"

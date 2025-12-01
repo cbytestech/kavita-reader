@@ -9,12 +9,14 @@ import {
   Alert,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
-import { Text, IconButton, ProgressBar, Button } from 'react-native-paper';
-import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, IconButton, ProgressBar } from 'react-native-paper';
 import { Audio } from 'expo-av';
 import { useServerStore } from '../stores/serverStore';
 import { useThemeStore } from '../stores/themeStore';
+import { useAppTheme, useIsDarkMode } from '../hooks/useAppTheme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -22,6 +24,38 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+// Simple HTML parser for basic tags
+const parseHtmlToReactNative = (html: string, fontSize: number, isDark: boolean, isGrayscale: boolean) => {
+  const textColor = isDark ? '#e0e0e0' : '#1a1a1a';
+  const linkColor = isDark ? '#64b5f6' : '#1976d2';
+  
+  // Strip HTML tags and convert to plain text with basic formatting
+  let text = html;
+  
+  // Remove script and style tags entirely
+  text = text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  
+  // Convert common HTML entities
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&apos;/g, "'");
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&amp;/g, '&');
+  
+  // Remove all other HTML tags but keep the content
+  text = text.replace(/<[^>]+>/g, '');
+  
+  // Clean up extra whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  // Split into paragraphs (double line breaks indicate new paragraphs)
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
+  
+  return paragraphs;
+};
 
 export default function EpubReaderScreen({ route, navigation }: Props) {
   const { chapterId, seriesId } = route.params;
@@ -32,15 +66,15 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
-  const [htmlContent, setHtmlContent] = useState('');
+  const [pageContent, setPageContent] = useState<string[]>([]);
   const [fontSize, setFontSize] = useState(18);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   
   const client = useServerStore((state) => state.getActiveClient());
-  const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const isGrayscaleReading = useThemeStore((state) => state.isGrayscaleReading);
   const pageTurnSoundsEnabled = useThemeStore((state) => state.pageTurnSoundsEnabled);
-  const theme = useThemeStore((state) => state.theme);
+  const theme = useAppTheme();
+  const isDarkMode = useIsDarkMode();
 
   useEffect(() => {
     loadSound();
@@ -55,7 +89,7 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
   }, []);
 
   useEffect(() => {
-    if (currentPage > 0 && chapterInfo) {
+    if (currentPage >= 0 && chapterInfo) {
       const timeout = setTimeout(() => saveProgress(), 1000);
       return () => clearTimeout(timeout);
     }
@@ -65,22 +99,17 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
     if (bookInfo && currentPage >= 0) {
       loadPageContent(currentPage);
     }
-  }, [isDarkMode, isGrayscaleReading, fontSize]);
+  }, [currentPage, isDarkMode, isGrayscaleReading, fontSize]);
 
   const loadSound = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-      
       const { sound: newSound } = await Audio.Sound.createAsync(
         require('../../assets/page-turn.mp3'),
         { volume: 0.3 }
       );
       setSound(newSound);
     } catch (error) {
-      console.log('Failed to load sound:', error);
+      console.log('⚠️ Sound file not found - page turns will be silent');
     }
   };
 
@@ -90,7 +119,7 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
     try {
       await sound.replayAsync();
     } catch (error) {
-      console.log('Failed to play sound:', error);
+      console.log('⚠️ Failed to play sound:', error);
     }
   };
 
@@ -114,7 +143,7 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
       setTotalPages(epubInfo.pages || 0);
       
       const startPage = (info.currentPage && info.currentPage > 0) ? info.currentPage : 0;
-      console.log(`📄 Starting at page ${startPage + 1} of ${epubInfo.pages}`);
+      console.log(`📄 Starting at page ${startPage + 1} of ${epubInfo.pages} (0-indexed: ${startPage})`);
       setCurrentPage(startPage);
       
       await loadPageContent(startPage);
@@ -130,119 +159,20 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
     if (!client) return;
     
     try {
-      console.log(`📄 Loading page ${page + 1}/${totalPages}`);
-      const content = await client.getBookPage(chapterId, page);
+      console.log(`📄 Loading page ${page + 1}/${totalPages} (0-indexed: ${page})`);
+      const rawHtml = await client.getBookPage(chapterId, page);
       
-      const styledContent = wrapContentWithStyles(content);
-      setHtmlContent(styledContent);
+      // Parse HTML to plain text paragraphs
+      const paragraphs = parseHtmlToReactNative(rawHtml, fontSize, isDarkMode, isGrayscaleReading);
+      setPageContent(paragraphs);
       setLoading(false);
       
-      console.log(`✅ Page ${page + 1} loaded`);
+      console.log(`✅ Page ${page + 1} loaded with ${paragraphs.length} paragraphs`);
     } catch (error: any) {
       console.error('❌ Failed to load page:', error);
       Alert.alert('Error', 'Failed to load page');
       setLoading(false);
     }
-  };
-
-  const wrapContentWithStyles = (content: string): string => {
-    const backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
-    const textColor = isDarkMode ? '#e0e0e0' : '#1a1a1a';
-    const linkColor = isDarkMode ? '#64b5f6' : '#1976d2';
-    
-    const grayscaleFilter = isGrayscaleReading ? 'grayscale(100%)' : 'none';
-    
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Georgia', serif;
-            font-size: ${fontSize}px;
-            line-height: 1.6;
-            color: ${textColor};
-            background-color: ${backgroundColor};
-            padding: 20px;
-            filter: ${grayscaleFilter};
-          }
-          
-          p {
-            margin-bottom: 1em;
-            text-align: justify;
-          }
-          
-          h1, h2, h3, h4, h5, h6 {
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            line-height: 1.3;
-            color: ${textColor};
-            font-weight: 600;
-          }
-          
-          h1 { font-size: 1.8em; }
-          h2 { font-size: 1.5em; }
-          h3 { font-size: 1.3em; }
-          
-          a {
-            color: ${linkColor};
-            text-decoration: underline;
-          }
-          
-          img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 1em auto;
-          }
-          
-          blockquote {
-            margin: 1em 0;
-            padding-left: 1em;
-            border-left: 3px solid ${linkColor};
-            font-style: italic;
-          }
-          
-          code {
-            background-color: ${isDarkMode ? '#2a2a2a' : '#f5f5f5'};
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-          }
-          
-          pre {
-            background-color: ${isDarkMode ? '#2a2a2a' : '#f5f5f5'};
-            padding: 1em;
-            border-radius: 5px;
-            overflow-x: auto;
-            margin: 1em 0;
-          }
-          
-          ul, ol {
-            margin-left: 2em;
-            margin-bottom: 1em;
-          }
-          
-          li {
-            margin-bottom: 0.5em;
-          }
-          
-          -webkit-user-select: text;
-          user-select: text;
-        </style>
-      </head>
-      <body>
-        ${content}
-      </body>
-      </html>
-    `;
   };
 
   const saveProgress = async () => {
@@ -255,7 +185,7 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
         chapterId,
         currentPage
       );
-      console.log(`💾 Progress saved: page ${currentPage + 1}`);
+      console.log(`💾 Progress saved: page ${currentPage + 1} (0-indexed: ${currentPage})`);
     } catch (error) {
       console.error('❌ Failed to save progress:', error);
     }
@@ -266,7 +196,6 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
       playPageTurnSound();
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
-      loadPageContent(nextPage);
     } else {
       Alert.alert(
         'Chapter Complete',
@@ -290,7 +219,6 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
       playPageTurnSound();
       const prevPage = currentPage - 1;
       setCurrentPage(prevPage);
-      loadPageContent(prevPage);
     }
   };
 
@@ -301,98 +229,157 @@ export default function EpubReaderScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+      <SafeAreaView style={[styles.loadingContainer, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, { color: theme.text }]}>
           Loading EPUB...
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
+  const backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
+  const textColor = isGrayscaleReading 
+    ? (isDarkMode ? '#b0b0b0' : '#4a4a4a')
+    : (isDarkMode ? '#e0e0e0' : '#1a1a1a');
+
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff' }]}>
-      <TouchableOpacity
-        style={styles.contentContainer}
-        activeOpacity={1}
-        onPress={() => setShowControls(!showControls)}
-      >
-        <WebView
-          source={{ html: htmlContent }}
-          style={styles.webview}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-          originWhitelist={['*']}
-        />
-      </TouchableOpacity>
+    <View style={[styles.fullScreen, { backgroundColor }]}>
+      {/* Hide status bar for immersive reading */}
+      <StatusBar hidden={!showControls} animated />
+      
+      <SafeAreaView style={styles.container} edges={showControls ? ['top', 'bottom'] : []}>
+        <View style={styles.contentWrapper}>
+          {/* Center tap zone - toggle controls */}
+          <TouchableOpacity
+            style={styles.centerTapZone}
+            activeOpacity={1}
+            onPress={() => setShowControls(!showControls)}
+          >
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingTop: showControls ? 80 : 20 }
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
+              {pageContent.map((paragraph, index) => (
+                <Text
+                  key={index}
+                  style={[
+                    styles.paragraph,
+                    {
+                      fontSize,
+                      lineHeight: fontSize * 1.6,
+                      color: textColor,
+                    }
+                  ]}
+                >
+                  {paragraph}
+                </Text>
+              ))}
+              
+              {pageContent.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, { color: textColor }]}>
+                    No content on this page
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
 
-      {showControls && (
-        <>
-          <View style={styles.topBar}>
-            <IconButton
-              icon="arrow-left"
-              iconColor="#fff"
-              size={24}
-              onPress={() => {
-                saveProgress();
-                navigation.goBack();
-              }}
-            />
-            <Text style={styles.topBarTitle} numberOfLines={1}>
-              {chapterInfo?.title || 'Reading'}
-            </Text>
-            <View style={styles.topBarActions}>
-              <IconButton
-                icon="format-font-size-decrease"
-                iconColor="#fff"
-                size={20}
-                onPress={() => changeFontSize(-2)}
-              />
-              <IconButton
-                icon="format-font-size-increase"
-                iconColor="#fff"
-                size={20}
-                onPress={() => changeFontSize(2)}
-              />
-            </View>
-          </View>
+          {/* Left tap zone - previous page */}
+          <TouchableOpacity
+            style={styles.leftTapZone}
+            activeOpacity={0.3}
+            onPress={goToPreviousPage}
+            disabled={currentPage === 0}
+          />
 
-          <View style={styles.bottomBar}>
-            <ProgressBar
-              progress={totalPages > 0 ? (currentPage + 1) / totalPages : 0}
-              color={theme.primary}
-              style={styles.progressBar}
-            />
-            <Text style={styles.pageInfo}>
-              Page {currentPage + 1} / {totalPages}
-            </Text>
-            <View style={styles.controlButtons}>
+          {/* Right tap zone - next page */}
+          <TouchableOpacity
+            style={styles.rightTapZone}
+            activeOpacity={0.3}
+            onPress={goToNextPage}
+            disabled={currentPage >= totalPages - 1}
+          />
+        </View>
+
+        {showControls && (
+          <>
+            <View style={styles.topBar}>
               <IconButton
-                icon="chevron-left"
+                icon="arrow-left"
                 iconColor="#fff"
-                size={28}
-                onPress={goToPreviousPage}
-                disabled={currentPage === 0}
+                size={24}
+                onPress={() => {
+                  saveProgress();
+                  navigation.goBack();
+                }}
               />
-              <Text style={styles.fontSizeIndicator}>
-                Font: {fontSize}px
+              <Text style={styles.topBarTitle} numberOfLines={1}>
+                {chapterInfo?.title || chapterInfo?.seriesName || 'Reading'}
               </Text>
-              <IconButton
-                icon="chevron-right"
-                iconColor="#fff"
-                size={28}
-                onPress={goToNextPage}
-                disabled={currentPage >= totalPages - 1}
-              />
+              <View style={styles.topBarActions}>
+                <IconButton
+                  icon="format-font-size-decrease"
+                  iconColor="#fff"
+                  size={20}
+                  onPress={() => changeFontSize(-2)}
+                />
+                <IconButton
+                  icon="format-font-size-increase"
+                  iconColor="#fff"
+                  size={20}
+                  onPress={() => changeFontSize(2)}
+                />
+              </View>
             </View>
-          </View>
-        </>
-      )}
+
+            <View style={styles.bottomBar}>
+              <ProgressBar
+                progress={totalPages > 0 ? (currentPage + 1) / totalPages : 0}
+                color={theme.primary}
+                style={styles.progressBar}
+              />
+              <View style={styles.pageInfoRow}>
+                <Text style={styles.pageInfo}>
+                  Page {currentPage + 1} / {totalPages}
+                </Text>
+                <Text style={styles.fontSizeIndicator}>
+                  Font: {fontSize}px
+                </Text>
+              </View>
+              <View style={styles.controlButtons}>
+                <IconButton
+                  icon="chevron-left"
+                  iconColor="#fff"
+                  size={28}
+                  onPress={goToPreviousPage}
+                  disabled={currentPage === 0}
+                />
+                <IconButton
+                  icon="chevron-right"
+                  iconColor="#fff"
+                  size={28}
+                  onPress={goToNextPage}
+                  disabled={currentPage >= totalPages - 1}
+                />
+              </View>
+            </View>
+          </>
+        )}
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fullScreen: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
@@ -404,12 +391,47 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
   },
-  contentContainer: {
+  contentWrapper: {
     flex: 1,
   },
-  webview: {
+  centerTapZone: {
     flex: 1,
-    backgroundColor: 'transparent',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 140,
+  },
+  paragraph: {
+    marginBottom: 16,
+    textAlign: 'justify',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontStyle: 'italic',
+  },
+  leftTapZone: {
+    position: 'absolute',
+    left: 0,
+    top: 100,
+    bottom: 100,
+    width: SCREEN_WIDTH * 0.3,
+  },
+  rightTapZone: {
+    position: 'absolute',
+    right: 0,
+    top: 100,
+    bottom: 100,
+    width: SCREEN_WIDTH * 0.3,
   },
   topBar: {
     position: 'absolute',
@@ -419,8 +441,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingTop: Platform.OS === 'ios' ? 50 : 10,
-    paddingBottom: 10,
+    paddingVertical: 10,
     paddingHorizontal: 8,
   },
   topBarTitle: {
@@ -438,8 +459,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingBottom: Platform.OS === 'ios' ? 30 : 10,
     paddingTop: 10,
+    paddingBottom: 10,
     paddingHorizontal: 16,
   },
   progressBar: {
@@ -447,19 +468,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     marginBottom: 8,
   },
-  pageInfo: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  controlButtons: {
+  pageInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  pageInfo: {
+    color: '#fff',
+    fontSize: 14,
   },
   fontSizeIndicator: {
     color: '#fff',
     fontSize: 12,
+  },
+  controlButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 80,
   },
 });

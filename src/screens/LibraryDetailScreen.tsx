@@ -1,9 +1,10 @@
+// src/screens/LibraryDetailScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, Keyboard } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, Keyboard, RefreshControl, ScrollView } from 'react-native';
 import { Text, ActivityIndicator, Card, Searchbar, Chip } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { useServerStore } from '../stores/serverStore';
-import { useThemeStore } from '../stores/themeStore';
+import { useAppTheme } from '../hooks/useAppTheme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -16,11 +17,12 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
   const { libraryId, libraryName } = route.params;
   const [series, setSeries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name');
   
   const client = useServerStore((state) => state.getActiveClient());
-  const theme = useThemeStore((state) => state.theme);
+  const theme = useAppTheme();
 
   useEffect(() => {
     loadSeries();
@@ -44,6 +46,12 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSeries();
+    setRefreshing(false);
   };
 
   const getCoverUrl = (seriesId: number) => {
@@ -164,12 +172,22 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
       </View>
 
       {sortedSeries.length === 0 ? (
-        <View style={styles.centerContainer}>
+        <ScrollView
+          contentContainerStyle={styles.centerContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+            />
+          }
+        >
           <Text variant="titleLarge" style={{ color: theme.text }}>No series found</Text>
           <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.textSecondary }]}>
             {searchQuery ? 'Try a different search term' : `This library has ${series.length} items but they may not have loaded correctly.`}
           </Text>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={sortedSeries}
@@ -179,6 +197,14 @@ export default function LibraryDetailScreen({ route, navigation }: Props) {
           contentContainerStyle={styles.gridContent}
           columnWrapperStyle={styles.row}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+            />
+          }
         />
       )}
     </View>

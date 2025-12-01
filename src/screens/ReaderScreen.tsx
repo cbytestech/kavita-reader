@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useServerStore } from '../stores/serverStore';
-import { useThemeStore } from '../stores/themeStore';
+import { useAppTheme } from '../hooks/useAppTheme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import ImageReaderScreen from './ImageReaderScreen';
@@ -17,7 +17,7 @@ export default function ReaderScreen({ route, navigation }: Props) {
   const [isEpub, setIsEpub] = useState(false);
   
   const client = useServerStore((state) => state.getActiveClient());
-  const theme = useThemeStore((state) => state.theme);
+  const theme = useAppTheme();
 
   useEffect(() => {
     detectReaderType();

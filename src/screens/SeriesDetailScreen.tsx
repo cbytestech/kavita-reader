@@ -1,16 +1,25 @@
+// src/screens/SeriesDetailScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Text, ActivityIndicator, Card, Button, Chip } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { Text, ActivityIndicator, Card, Chip, IconButton } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { useServerStore } from '../stores/serverStore';
 import { useThemeStore } from '../stores/themeStore';
+import { createScreenLogger } from '../utils/debugLogger';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SeriesDetail'>;
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const logger = createScreenLogger('SeriesDetailScreen');
+
 export default function SeriesDetailScreen({ route, navigation }: Props) {
   const { seriesId } = route.params;
+  
+  logger.render('component render');
+  logger.info(`Series ID: ${seriesId}`);
+  
   const [series, setSeries] = useState<any>(null);
   const [volumes, setVolumes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,230 +28,397 @@ export default function SeriesDetailScreen({ route, navigation }: Props) {
   const theme = useThemeStore((state) => state.theme);
 
   useEffect(() => {
-    loadSeriesData();
+    logger.effect('Component mounted');
+    loadSeriesDetails();
   }, []);
 
-  const loadSeriesData = async () => {
-    if (!client) return;
+  const loadSeriesDetails = async () => {
+    if (!client) {
+      logger.error('No client available');
+      return;
+    }
     
+    logger.function('loadSeriesDetails', 'Starting');
     setLoading(true);
+    
     try {
+      logger.function('loadSeriesDetails', `Fetching series ${seriesId}`);
       const [seriesData, volumesData] = await Promise.all([
         client.getSeriesById(seriesId),
         client.getVolumes(seriesId)
       ]);
       
-      console.log('Series data:', seriesData);
-      console.log('Volumes data:', volumesData);
+      logger.success(`Loaded series: ${seriesData.name}`);
+      logger.info(`Found ${volumesData.length} volumes`);
+      
+      // Log volume structure for debugging
+      volumesData.forEach((vol, idx) => {
+        logger.info(`Volume ${idx}: name="${vol.name}", chapters=${vol.chapters?.length || 0}`);
+      });
       
       setSeries(seriesData);
       setVolumes(volumesData);
-      navigation.setOptions({ title: seriesData.name });
     } catch (error: any) {
-      console.error('Failed to load series:', error);
+      logger.error('Failed to load series details', error.message);
+      Alert.alert('Error', 'Failed to load series details');
     } finally {
       setLoading(false);
+      logger.function('loadSeriesDetails', 'Complete');
     }
   };
 
-  const getCoverUrl = () => {
-    if (!client) return '';
-    return client.getCoverImageUrl(seriesId);
-  };
-
-  const getVolumeCoverUrl = (volumeId: number) => {
+  const getCoverUrl = (volumeId: number) => {
     if (!client) return '';
     return client.getVolumeCoverUrl(volumeId);
   };
 
-  const getProgress = () => {
-    if (!series || series.pages === 0) return 0;
-    return Math.round((series.pagesRead / series.pages) * 100);
+  const getChapterCoverUrl = (chapterId: number) => {
+    if (!client) return '';
+    return client.getChapterCoverUrl(chapterId);
   };
 
-  const handleReadVolume = (volume: any) => {
-    if (volume.chapters && volume.chapters.length > 0) {
-      const firstChapter = volume.chapters[0];
-      navigation.navigate('Reader', { 
-        chapterId: firstChapter.id,
-        seriesId: seriesId 
-      });
-    } else {
-      alert(`No chapters found in ${volume.name || `Volume ${volume.number}`}`);
+  const getFileExtension = (fileName: string): string => {
+    if (!fileName || typeof fileName !== 'string') return '';
+    const match = fileName.match(/\.([^.]+)$/);
+    return match ? match[1].toUpperCase() : '';
+  };
+
+  const getFileTypeLabel = (chapter: any): string => {
+    // Try fileName first
+    if (chapter.fileName && typeof chapter.fileName === 'string') {
+      const ext = getFileExtension(chapter.fileName);
+      if (ext) return ext;
+      
+      const lowerName = chapter.fileName.toLowerCase();
+      if (lowerName.includes('epub')) return 'EPUB';
+      if (lowerName.includes('pdf')) return 'PDF';
+      if (lowerName.includes('cbz') || lowerName.includes('zip')) return 'CBZ';
+      if (lowerName.includes('cbr') || lowerName.includes('rar')) return 'CBR';
+      if (lowerName.includes('cb7') || lowerName.includes('7z')) return 'CB7';
+    }
+    
+    // Try format field (Kavita API uses MangaFormat enum)
+    // 0 = Unknown, 1 = Archive, 2 = Epub, 3 = Pdf, 4 = Image
+    if (chapter.format !== undefined) {
+      switch (chapter.format) {
+        case 2: return 'EPUB';
+        case 3: return 'PDF';
+        case 1: return 'CBZ'; // Generic archive
+        case 4: return 'Images';
+      }
+    }
+    
+    // Fallback: check file extension from chapter.files if available
+    if (chapter.files && Array.isArray(chapter.files) && chapter.files.length > 0) {
+      const firstFile = chapter.files[0];
+      if (typeof firstFile === 'string') {
+        const ext = getFileExtension(firstFile);
+        if (ext) return ext;
+      }
+    }
+    
+    return 'Book';
+  };
+
+  const getFileTypeColor = (chapter: any): string => {
+    const fileType = getFileTypeLabel(chapter);
+    
+    switch (fileType) {
+      case 'EPUB': return '#9C27B0';
+      case 'PDF': return '#F44336';
+      case 'CBZ':
+      case 'ZIP': return '#2196F3';
+      case 'CBR':
+      case 'RAR': return '#FF9800';
+      case 'CB7':
+      case '7Z': return '#4CAF50';
+      case 'CBT':
+      case 'TAR': return '#00BCD4';
+      case 'Images': return '#795548';
+      case 'MOBI':
+      case 'AZW':
+      case 'AZW3': return '#673AB7';
+      default: return theme.textSecondary;
     }
   };
 
+  const getFileIcon = (chapter: any): string => {
+    const fileType = getFileTypeLabel(chapter);
+    
+    switch (fileType) {
+      case 'EPUB':
+      case 'MOBI':
+      case 'AZW':
+      case 'AZW3': return 'book-open-variant';
+      case 'PDF': return 'file-pdf-box';
+      case 'CBZ':
+      case 'CBR':
+      case 'CB7':
+      case 'CBT':
+      case 'ZIP':
+      case 'RAR':
+      case '7Z':
+      case 'TAR': return 'book-open-page-variant';
+      case 'Images': return 'image-multiple';
+      default: return 'book';
+    }
+  };
+
+  const handleChapterPress = async (volume: any, chapter: any) => {
+    if (!client) return;
+    
+    logger.user('Chapter clicked', chapter.titleName || chapter.range);
+    
+    try {
+      logger.function('handleChapterPress', 'Pre-caching chapter');
+      await client.cacheChapter(chapter.id);
+      logger.success('Chapter cached');
+      
+      navigation.navigate('Reader', {
+        chapterId: chapter.id,
+        seriesId: seriesId,
+      });
+    } catch (error) {
+      logger.warn('Cache failed, navigating anyway');
+      navigation.navigate('Reader', {
+        chapterId: chapter.id,
+        seriesId: seriesId,
+      });
+    }
+  };
+
+  // ✅ Smart chapter title that shows filename for books
+  const getChapterDisplayTitle = (chapter: any, index: number): string => {
+    // If there's a title, use it
+    if (chapter.titleName && chapter.titleName !== chapter.range) {
+      return chapter.titleName;
+    }
+    
+    // If there's a range, use it
+    if (chapter.range && chapter.range !== '0') {
+      return `Chapter ${chapter.range}`;
+    }
+    
+    // For books (EPUB/PDF), show the filename without extension
+    if (chapter.fileName && typeof chapter.fileName === 'string') {
+      const fileName = chapter.fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+      if (fileName && fileName !== '0' && !fileName.match(/^\d+$/)) {
+        return fileName;
+      }
+    }
+    
+    // Fallback
+    return `Book ${index + 1}`;
+  };
+
+  // ✅ Determine if we should hide the volume header (for loose leaf collections)
+  const shouldHideVolumeHeader = (volume: any): boolean => {
+    const chapters = volume.chapters || [];
+    
+    if (!volume.name || typeof volume.name !== 'string') {
+      return true;
+    }
+    
+    // Hide if volume name starts with a minus (like "-100000")
+    if (volume.name.startsWith('-')) {
+      return true;
+    }
+    
+    // Hide if volume name is just a number (positive or negative)
+    if (volume.name.match(/^-?\d+$/)) {
+      return true;
+    }
+    
+    // Hide if marked as loose leaf
+    if (volume.name === '0' || volume.minNumber === 0) {
+      return true;
+    }
+    
+    // Hide if there's only 1 chapter and the volume looks auto-generated
+    if (chapters.length === 1 && volume.name.match(/^\d+$/)) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  const renderChapterItem = (volume: any, chapter: any, index: number) => {
+    const fileType = getFileTypeLabel(chapter);
+    const fileColor = getFileTypeColor(chapter);
+    const fileIcon = getFileIcon(chapter);
+    const progress = chapter.pagesRead > 0 ? (chapter.pagesRead / chapter.pages) * 100 : 0;
+    const displayTitle = getChapterDisplayTitle(chapter, index);
+    
+    // Debug log the first few chapters to see what data we have
+    if (index < 2) {
+      logger.info(`Chapter ${index}: format=${chapter.format}, fileName=${chapter.fileName}, fileType=${fileType}`);
+    }
+    
+    return (
+      <TouchableOpacity
+        key={chapter.id}
+        onPress={() => handleChapterPress(volume, chapter)}
+      >
+        <Card style={[styles.chapterCard, { backgroundColor: theme.surface }]}>
+          <Card.Content style={styles.chapterContent}>
+            {/* ✅ Show chapter cover for books */}
+            <Image
+              source={{ uri: getChapterCoverUrl(chapter.id) }}
+              style={styles.chapterCover}
+              contentFit="cover"
+            />
+            
+            <View style={styles.chapterInfo}>
+              <Text variant="bodyLarge" style={[styles.chapterTitle, { color: theme.text }]}>
+                {displayTitle}
+              </Text>
+              
+              <View style={styles.chapterMeta}>
+                <Text variant="bodySmall" style={{ color: theme.textSecondary }}>
+                  {chapter.pages} pages
+                </Text>
+                {chapter.pagesRead > 0 && (
+                  <>
+                    <Text style={{ color: theme.textSecondary }}> • </Text>
+                    <Text variant="bodySmall" style={{ color: theme.primary }}>
+                      {Math.round(progress)}% read
+                    </Text>
+                  </>
+                )}
+              </View>
+              
+              {progress > 0 && (
+                <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                  <View 
+                    style={[
+                      styles.progressFill,
+                      { width: `${progress}%`, backgroundColor: theme.primary }
+                    ]} 
+                  />
+                </View>
+              )}
+              
+              {/* ✅ File type chip moved to bottom */}
+              <View style={styles.fileTypeRow}>
+                <Chip 
+                  icon={fileIcon}
+                  style={[styles.fileTypeChip, { backgroundColor: fileColor }]}
+                  textStyle={{ color: '#fff', fontSize: 12, fontWeight: '600' }}
+                  compact={false}
+                >
+                  {fileType}
+                </Chip>
+              </View>
+            </View>
+            
+            <IconButton
+              icon="chevron-right"
+              size={20}
+              iconColor={theme.textSecondary}
+            />
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderVolume = (volume: any) => {
+    const chapters = volume.chapters || [];
+    const hideHeader = shouldHideVolumeHeader(volume);
+    
+    return (
+      <View key={volume.id} style={styles.volumeSection}>
+        {!hideHeader && (
+          <View style={styles.volumeHeader}>
+            <Image
+              source={{ uri: getCoverUrl(volume.id) }}
+              style={styles.volumeCover}
+              contentFit="cover"
+            />
+            <View style={styles.volumeInfo}>
+              <Text variant="titleMedium" style={[styles.volumeTitle, { color: theme.text }]}>
+                {volume.name}
+              </Text>
+              <Text variant="bodySmall" style={{ color: theme.textSecondary }}>
+                {chapters.length} {chapters.length === 1 ? 'item' : 'items'}
+              </Text>
+            </View>
+          </View>
+        )}
+        
+        <View style={styles.chaptersList}>
+          {chapters.map((chapter: any, index: number) => 
+            renderChapterItem(volume, chapter, index)
+          )}
+        </View>
+      </View>
+    );
+  };
+
   if (loading) {
+    logger.render_phase('Rendering loading state');
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading series...</Text>
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+          Loading series...
+        </Text>
       </View>
     );
   }
 
   if (!series) {
+    logger.error('Series not found');
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
-        <Text variant="titleLarge" style={{ color: theme.text }}>Series not found</Text>
+        <Text variant="titleLarge" style={{ color: theme.text }}>
+          Series not found
+        </Text>
       </View>
     );
   }
 
+  logger.render_phase(`Rendering series: ${series.name}`);
+  
+  // ✅ Count total items across all volumes
+  const totalItems = volumes.reduce((sum, vol) => sum + (vol.chapters?.length || 0), 0);
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Cover and Info Section */}
-      <View style={[styles.heroSection, { backgroundColor: theme.surface }]}>
-        <Image
-          source={{ uri: getCoverUrl() }}
-          style={styles.coverImage}
-          contentFit="cover"
-        />
-        
-        <View style={styles.infoSection}>
-          <Text variant="headlineMedium" style={[styles.seriesTitle, { color: theme.text }]}>
-            {series.name}
-          </Text>
-          
-          {series.summary && (
-            <Text variant="bodyMedium" style={[styles.summary, { color: theme.textSecondary }]}>
-              {series.summary}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView>
+        <View style={[styles.seriesHeader, { backgroundColor: theme.surface }]}>
+          <Image
+            source={{ uri: client?.getCoverImageUrl(seriesId) }}
+            style={styles.seriesCover}
+            contentFit="cover"
+          />
+          <View style={styles.seriesInfo}>
+            <Text variant="headlineSmall" style={[styles.seriesTitle, { color: theme.text }]}>
+              {series.name}
             </Text>
-          )}
-
-          <View style={styles.metaRow}>
-            <Chip icon="book-open" style={[styles.chip, { backgroundColor: theme.card }]} textStyle={{ color: theme.text }}>
-              {series.pages} pages
-            </Chip>
-            <Chip icon="progress-check" style={[styles.chip, { backgroundColor: theme.card }]} textStyle={{ color: theme.text }}>
-              {getProgress()}% read
-            </Chip>
-          </View>
-
-          <Button
-            mode="contained"
-            icon="play"
-            style={styles.readButton}
-            buttonColor={theme.accent}
-            onPress={() => {
-              if (volumes.length > 0) {
-                handleReadVolume(volumes[0]);
-              } else {
-                alert('No volumes available');
-              }
-            }}
-          >
-            {series.pagesRead > 0 ? 'Continue Reading' : 'Start Reading'}
-          </Button>
-        </View>
-      </View>
-
-      {/* Volumes and Chapters List */}
-      <View style={styles.volumesSection}>
-        <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.text }]}>
-          {volumes.length === 1 && volumes[0].chapters?.length > 1 
-            ? 'Chapters' 
-            : 'Volumes & Chapters'}
-        </Text>
-        
-        {volumes.length === 0 ? (
-          <Card style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
-            <Card.Content>
-              <Text style={{ color: theme.text }}>No volumes available</Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          volumes.map((volume) => (
-            <View key={volume.id} style={styles.volumeContainer}>
-              {/* Volume Header - only show if there are multiple volumes */}
-              {volumes.length > 1 && (
-                <Card style={[styles.volumeCard, { backgroundColor: theme.surface }]}>
-                  <TouchableOpacity onPress={() => handleReadVolume(volume)}>
-                    <Card.Content>
-                      <View style={styles.volumeHeader}>
-                        <Image
-                          source={{ uri: getVolumeCoverUrl(volume.id) }}
-                          style={styles.volumeCover}
-                          contentFit="cover"
-                        />
-                        <View style={styles.volumeInfo}>
-                          <Text variant="titleMedium" style={[styles.volumeName, { color: theme.text }]}>
-                            {volume.name || `Volume ${volume.number}`}
-                          </Text>
-                          <Text variant="bodySmall" style={[styles.volumeMeta, { color: theme.textSecondary }]}>
-                            {volume.chapters?.length || 0} chapters • {volume.pages} pages
-                          </Text>
-                          {volume.pagesRead > 0 && (
-                            <View style={styles.progressBarContainer}>
-                              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-                                <View 
-                                  style={[
-                                    styles.progressFill, 
-                                    { 
-                                      width: `${Math.round((volume.pagesRead / volume.pages) * 100)}%`,
-                                      backgroundColor: theme.primary
-                                    }
-                                  ]} 
-                                />
-                              </View>
-                              <Text variant="bodySmall" style={[styles.progressText, { color: theme.textSecondary }]}>
-                                {Math.round((volume.pagesRead / volume.pages) * 100)}%
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </Card.Content>
-                  </TouchableOpacity>
-                </Card>
-              )}
-
-              {/* Chapters List */}
-              {volume.chapters && volume.chapters.length > 0 && (
-                <View style={styles.chaptersContainer}>
-                  {volume.chapters.map((chapter: any) => (
-                    <Card key={chapter.id} style={[styles.chapterCard, { backgroundColor: theme.surface }]}>
-                      <TouchableOpacity 
-                        onPress={() => {
-                          navigation.navigate('Reader', {
-                            chapterId: chapter.id,
-                            seriesId: seriesId
-                          });
-                        }}
-                      >
-                        <Card.Content>
-                          <View style={styles.chapterRow}>
-                            <View style={styles.chapterInfo}>
-                              <Text variant="bodyLarge" style={[styles.chapterTitle, { color: theme.text }]}>
-                                {chapter.title || chapter.titleName || chapter.range || `Chapter ${chapter.number}`}
-                              </Text>
-                              <Text variant="bodySmall" style={[styles.chapterMeta, { color: theme.textSecondary }]}>
-                                {chapter.pages} pages
-                                {chapter.pagesRead > 0 && ` • ${chapter.pagesRead} read`}
-                              </Text>
-                            </View>
-                            {chapter.pagesRead > 0 && chapter.pagesRead < chapter.pages && (
-                              <Chip mode="outlined" compact style={[styles.inProgressChip, { borderColor: theme.warning, backgroundColor: `${theme.warning}20` }]}>
-                                In Progress
-                              </Chip>
-                            )}
-                            {chapter.pagesRead === chapter.pages && (
-                              <Chip mode="outlined" compact style={[styles.completedChip, { borderColor: theme.success, backgroundColor: `${theme.success}20` }]}>
-                                ✓ Read
-                              </Chip>
-                            )}
-                          </View>
-                        </Card.Content>
-                      </TouchableOpacity>
-                    </Card>
-                  ))}
-                </View>
-              )}
+            {series.summary && (
+              <Text variant="bodyMedium" style={[styles.seriesSummary, { color: theme.textSecondary }]}>
+                {series.summary}
+              </Text>
+            )}
+            <View style={styles.statsRow}>
+              {/* ✅ Show total items instead of volumes for book collections */}
+              <Chip 
+                icon="book-open-variant" 
+                style={{ backgroundColor: theme.primaryLight }}
+                textStyle={{ color: '#fff', fontWeight: '600' }}
+              >
+                {totalItems} {totalItems === 1 ? 'Book' : 'Books'}
+              </Chip>
             </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+          </View>
+        </View>
+
+        <View style={styles.volumesContainer}>
+          {volumes.map(renderVolume)}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -254,113 +430,105 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
   },
   loadingText: {
     marginTop: 16,
   },
-  heroSection: {
-    paddingBottom: 20,
-  },
-  coverImage: {
-    width: '100%',
-    height: 300,
-    backgroundColor: '#E0E0E0',
-  },
-  infoSection: {
+  seriesHeader: {
     padding: 16,
+    flexDirection: 'row',
+    gap: 16,
+  },
+  seriesCover: {
+    width: 120,
+    height: 180,
+    borderRadius: 8,
+  },
+  seriesInfo: {
+    flex: 1,
+    gap: 8,
   },
   seriesTitle: {
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  summary: {
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  chip: {
-  },
-  readButton: {
-  },
-  volumesSection: {
-    padding: 16,
-  },
-  sectionTitle: {
-    marginBottom: 12,
     fontWeight: '600',
   },
-  volumeContainer: {
-    marginBottom: 16,
+  seriesSummary: {
+    fontSize: 14,
+    lineHeight: 20,
   },
-  volumeCard: {
-    marginBottom: 12,
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  volumesContainer: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  volumeSection: {
+    marginBottom: 24,
   },
   volumeHeader: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 8,
   },
   volumeCover: {
     width: 60,
     height: 90,
     borderRadius: 4,
-    backgroundColor: '#E0E0E0',
   },
   volumeInfo: {
-    flex: 1,
+    justifyContent: 'center',
+    gap: 4,
   },
-  volumeName: {
+  volumeTitle: {
     fontWeight: '600',
-    marginBottom: 4,
   },
-  volumeMeta: {
-    marginBottom: 8,
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-  },
-  progressText: {
-    minWidth: 35,
-  },
-  chaptersContainer: {
+  chaptersList: {
     gap: 8,
   },
   chapterCard: {
+    elevation: 1,
   },
-  chapterRow: {
+  chapterContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 8,
+    gap: 12,
+  },
+  chapterCover: {
+    width: 50,
+    height: 75,
+    borderRadius: 4,
+    backgroundColor: '#E0E0E0',
   },
   chapterInfo: {
     flex: 1,
-    marginRight: 8,
+    gap: 4,
   },
   chapterTitle: {
     fontWeight: '500',
-    marginBottom: 2,
+  },
+  fileTypeRow: {
+    marginTop: 4,
+  },
+  fileTypeChip: {
+    height: 32,
+    alignSelf: 'flex-start',
   },
   chapterMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  inProgressChip: {
+  progressBar: {
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 4,
   },
-  completedChip: {
-  },
-  emptyCard: {
+  progressFill: {
+    height: '100%',
   },
 });

@@ -3,7 +3,7 @@ import { View, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-n
 import { TextInput, Button, Text, ActivityIndicator, IconButton } from 'react-native-paper';
 import { KavitaClient } from '../api/kavitaClient';
 import { useServerStore } from '../stores/serverStore';
-import { useThemeStore } from '../stores/themeStore';
+import { useAppTheme } from '../hooks/useAppTheme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -17,7 +17,7 @@ export default function LoginScreen({ navigation, route }: Props) {
   const [showPassword, setShowPassword] = useState(false);
 
   const addServer = useServerStore((state) => state.addServer);
-  const theme = useThemeStore((state) => state.theme);
+  const theme = useAppTheme();
 
   const handleLogin = async () => {
     if (!username || !password) {

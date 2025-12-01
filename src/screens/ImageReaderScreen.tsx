@@ -65,22 +65,13 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
 
   const loadSound = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-      
-      // Create a simple page turn sound using expo-av
-      // You'll need to add a page-turn.mp3 to your assets folder
-      // For now, we'll use a placeholder
       const { sound: newSound } = await Audio.Sound.createAsync(
-        // Replace this with your actual sound file
         require('../../assets/page-turn.mp3'),
         { volume: 0.3 }
       );
       setSound(newSound);
     } catch (error) {
-      console.log('Failed to load sound:', error);
+      console.log('⚠️ Sound file not found - page turns will be silent');
     }
   };
 
@@ -90,40 +81,69 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
     try {
       await sound.replayAsync();
     } catch (error) {
-      console.log('Failed to play sound:', error);
+      console.log('⚠️ Failed to play sound:', error);
     }
   };
 
   const loadChapter = async () => {
-    if (!client) return;
+    if (!client) {
+      console.log('❌ No client available');
+      return;
+    }
     
+    console.log('📚 Loading chapter...');
+    console.log('  ℹ️ Chapter ID:', chapterId);
     setLoading(true);
+    
     try {
+      console.log('  📡 Fetching chapter info from API...');
       const info = await client.getChapterInfo(chapterId);
+      console.log('    ✅ Chapter info received');
+      console.log('    ℹ️ Title:', info.title);
+      console.log('    ℹ️ Total pages:', info.pages);
+      console.log('    ℹ️ Current page:', info.currentPage || 0);
+      console.log('    ℹ️ File name:', info.fileName);
+      
       setChapterInfo(info);
       setTotalPages(info.pages || 0);
       
       const startPage = (info.currentPage && info.currentPage > 0) ? info.currentPage : 0;
+      console.log('  📄 Starting at page:', startPage + 1, '(0-indexed:', startPage + ')');
       setCurrentPage(startPage);
       
+      console.log('  💿 Caching chapter...');
       await client.cacheChapter(chapterId);
+      console.log('    ✅ Chapter cached');
+      
       setLoading(false);
+      console.log('✅ Chapter loaded successfully');
       
     } catch (error: any) {
-      console.error('Failed to load chapter:', error);
+      console.log('❌ Failed to load chapter');
+      console.log('  ℹ️ Error:', error.message);
+      console.log('  ℹ️ Chapter ID:', chapterId);
       Alert.alert('Error', 'Failed to load chapter');
       setLoading(false);
     }
   };
 
   const loadImageWithAuth = async (page: number) => {
-    if (!client) return;
+    if (!client) {
+      console.log('❌ No client available for image loading');
+      return;
+    }
     
+    console.log('🖼️ Loading image for page', page + 1);
     setImageLoading(true);
+    
     try {
       const apiKey = client.getApiKey();
       const url = `${client.getBaseUrl()}/api/Reader/image?chapterId=${chapterId}&page=${page}&extractPdf=true&apiKey=${apiKey}`;
       const token = client.getToken();
+      
+      console.log('  📡 Fetching image from API...');
+      console.log('    ℹ️ Page:', page + 1, '/', totalPages);
+      console.log('    ℹ️ Extract PDF: true');
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -136,23 +156,34 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
       });
       
       clearTimeout(timeoutId);
+      console.log('  📥 Response received');
+      console.log('    ℹ️ Status:', response.status);
       
       if (!response.ok) {
+        console.log('  ❌ Failed to load page');
+        console.log('    ℹ️ HTTP Status:', response.status);
         Alert.alert('Error', `Failed to load page ${page + 1}`);
         setImageLoading(false);
         setLoading(false);
         return;
       }
       
+      console.log('  📦 Converting response to blob...');
       const blob = await response.blob();
+      console.log('    ℹ️ Blob size:', (blob.size / 1024).toFixed(2), 'KB');
+      
+      console.log('  🔄 Converting to base64...');
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setImageData(base64);
         setImageLoading(false);
         setLoading(false);
+        console.log('  ✅ Image loaded and displayed');
+        console.log('    ℹ️ Base64 length:', base64.length, 'characters');
       };
       reader.onerror = () => {
+        console.log('  ❌ FileReader error');
         Alert.alert('Error', 'Failed to process image');
         setImageLoading(false);
         setLoading(false);
@@ -160,9 +191,13 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
       reader.readAsDataURL(blob);
       
     } catch (error: any) {
-      console.error('Failed to load image:', error);
+      console.log('❌ Failed to load image');
+      console.log('  ℹ️ Error:', error.message);
+      console.log('  ℹ️ Error name:', error.name);
+      console.log('  ℹ️ Page:', page + 1);
       
       if (error.name === 'AbortError') {
+        console.log('  ⏱️ Request timed out after 30 seconds');
         Alert.alert('Timeout', 'Page took too long to load');
       } else {
         Alert.alert('Error', 'Failed to load page');
@@ -174,7 +209,15 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
   };
 
   const saveProgress = async () => {
-    if (!client || !chapterInfo) return;
+    if (!client || !chapterInfo) {
+      console.log('⚠️ Cannot save progress - missing client or chapter info');
+      return;
+    }
+    
+    console.log('💾 Saving reading progress...');
+    console.log('  ℹ️ Series ID:', seriesId);
+    console.log('  ℹ️ Chapter ID:', chapterId);
+    console.log('  ℹ️ Page:', currentPage + 1, '/', totalPages);
     
     try {
       await client.markProgress(
@@ -183,16 +226,20 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
         chapterId,
         currentPage
       );
+      console.log('  ✅ Progress saved successfully');
     } catch (error) {
-      console.error('Failed to save progress:', error);
+      console.log('  ❌ Failed to save progress');
+      console.log('    ℹ️ Error:', error);
     }
   };
 
   const goToNextPage = () => {
     if (currentPage < totalPages - 1) {
+      console.log('➡️ Next page:', currentPage + 2, '/', totalPages);
       playPageTurnSound();
       setCurrentPage(currentPage + 1);
     } else {
+      console.log('🏁 Reached end of chapter');
       Alert.alert(
         'Chapter Complete',
         "You've reached the end of this chapter.",
@@ -212,8 +259,11 @@ export default function ImageReaderScreen({ route, navigation }: Props) {
 
   const goToPreviousPage = () => {
     if (currentPage > 0) {
+      console.log('⬅️ Previous page:', currentPage, '/', totalPages);
       playPageTurnSound();
       setCurrentPage(currentPage - 1);
+    } else {
+      console.log('⚠️ Already at first page');
     }
   };
 
