@@ -269,7 +269,7 @@ Merry Christmas 2024 🎄📚❤️
 
 <div align="center">
 
-**Made with ❤️ by [Norm (Nicholas Hess)](https://github.com/cbytestech)**
+**Made with ❤️ by [Norm](https://github.com/cbytestech)**
 
 **Hess Homestead** • **2024**
 
