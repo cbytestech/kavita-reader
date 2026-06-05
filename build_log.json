@@ -1,0 +1,49 @@
+{
+  "id": "d0073dec-5460-4740-9891-01156fce16b6",
+  "status": "ERRORED",
+  "platform": "ANDROID",
+  "error": {
+    "errorCode": "EAS_BUILD_UNKNOWN_GRADLE_ERROR",
+    "message": "Gradle build failed with unknown error. See logs for the \"Run gradlew\" phase for more information."
+  },
+  "artifacts": {},
+  "fingerprint": {
+    "id": "019e95b9-f0bc-7cf5-a76d-c0808b317498",
+    "hash": "f6d72bd65e66c49b41b7d891e360ed902e7171bb"
+  },
+  "initiatingActor": {
+    "id": "4205ab75-5fd6-42dd-a493-eff58e1e49ea",
+    "displayName": "webtechnick"
+  },
+  "logFiles": [
+    "https://storage.googleapis.com/eas-workflows-production/logs/45df5044-5be7-4201-8f7b-760737b9f86d/d0073dec-5460-4740-9891-01156fce16b6/2026-06-05T03%3A00%3A54Z-fd5306d7-19e0-493d-ba0e-f811185e787b.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260605%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260605T030721Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=30ccd8b3383db9c89863caae2fa5ee39cedd264a5a67fe41b57b1f642c21faf3bd5842b15ac5fe18529f3de093535eb58f3d9e27206fea4003c6fe54166d69ddf76e4285c1a461520157e471c70d4be4791672b36698583bec9503c4abbb636441e607519703b78b72a2d9989358caedc57d63acce142f62eb2393d7c4861fa948416d5b0b2f3c6c4009c1ffb820ce006d3f98f57529f6d5a4c1e7d25ccda6ab571bef83767a1a25acbb0f4ee730d00cc7e482874a69a6123ca9bbbe4d971d149ec68e279667fb6fcb713958de770f6cd090e1dbb486aca43639d671f880311685d67917f45e2c1330615b431cae58019e7ea4319c43a25ea5ee3a563fb237af"
+  ],
+  "project": {
+    "id": "45df5044-5be7-4201-8f7b-760737b9f86d",
+    "name": "kavita-reader",
+    "slug": "kavita-reader",
+    "ownerAccount": {
+      "id": "1abf4d22-f588-4f4e-a72a-a3adb933bdce",
+      "name": "webtechnick"
+    }
+  },
+  "distribution": "INTERNAL",
+  "buildProfile": "preview",
+  "sdkVersion": "54.0.0",
+  "appVersion": "1.0.1",
+  "appBuildVersion": "9",
+  "runtimeVersion": "1.0.0",
+  "gitCommitHash": "7da0e36d57600b63b2ee25bcc0628a573fdec8ec",
+  "gitCommitMessage": "fix: pin NDK 26.1 in app/build.gradle, clean up duplicate allprojects",
+  "priority": "NORMAL",
+  "createdAt": "2026-06-05T03:00:51.475Z",
+  "updatedAt": "2026-06-05T03:04:13.124Z",
+  "completedAt": "2026-06-05T03:04:12.955Z",
+  "expirationDate": "2026-06-19T03:00:51.506Z",
+  "isForIosSimulator": false,
+  "metrics": {
+    "buildWaitTime": 2711,
+    "buildQueueTime": 4656,
+    "buildDuration": 194113
+  }
+}
