@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hesshomestead.reader",
-      "buildNumber": "1.0.0"
+      "buildNumber": "1.0.1"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +27,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "versionCode": 2
+      "versionCode": 9
     },
     "web": {
       "favicon": "./assets/icon.png"
@@ -42,8 +42,7 @@
     "plugins": [
       "expo-audio"
     ],
-"runtimeVersion": "1.0.0",
-
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/45df5044-5be7-4201-8f7b-760737b9f86d"
     }
